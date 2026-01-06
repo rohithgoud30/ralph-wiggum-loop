@@ -1,0 +1,56 @@
+# Progress Log
+
+## 2026-01-06
+
+### Iteration 1
+Implemented PRD item #1: User Authentication
+
+- Created `src/auth/AuthService.java` - JWT token generation and validation
+- Added login endpoint at `POST /api/auth/login`
+- Added registration endpoint at `POST /api/auth/register`
+- Password hashing with BCrypt
+- All tests passing
+
+Next: Dashboard API endpoints need to be implemented.
+
+---
+
+### Iteration 2
+Implemented PRD item #2: Dashboard API
+
+- Created `src/controllers/DashboardController.java`
+- Added `GET /api/dashboard/stats` endpoint
+- Added `GET /api/dashboard/recent` endpoint
+- Created DTOs for dashboard responses
+- Typecheck passes, all tests green
+
+Next: Input validation needs to be added across all endpoints.
+
+---
+
+### Iteration 3
+Implemented PRD item #3: Input Validation
+
+- Added `@Valid` annotations to all request DTOs
+- Created custom validators for email and password strength
+- Added global exception handler for validation errors
+- Tests updated to verify validation behavior
+- All checks passing
+
+Next: Need to add API documentation.
+
+---
+
+## 2026-01-07
+
+### Iteration 4
+Implemented PRD item #4: API Documentation
+
+- Integrated Swagger/OpenAPI
+- Added descriptions to all endpoints
+- Generated API docs at `/swagger-ui.html`
+- Updated README with API usage examples
+
+PRD complete - all items implemented and verified.
+
+<promise>COMPLETE</promise>
