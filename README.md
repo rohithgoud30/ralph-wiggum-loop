@@ -10,6 +10,58 @@ Ralph is a development methodology based on continuous AI agent loops. As [Geoff
 
 The technique is named after Ralph Wiggum from The Simpsons, embodying the philosophy of **persistent iteration despite setbacks**.
 
+> [!CAUTION] > **Run in a sandbox environment!** Always use this in a clean repository, isolated environment, or least-privileged directory. Autonomous agents can execute destructive commands. Never run on production systems or directories containing sensitive data.
+
+---
+
+## ⚠️ Safety & Warnings
+
+### Run in a Sandbox
+
+Before running any Ralph loop:
+
+- ✅ Use a **fresh clone** or isolated branch
+- ✅ Run in a **container** or virtual environment
+- ✅ Use **least-privileged** directories
+- ❌ Never run on production systems
+- ❌ Never run in directories with sensitive data
+
+### Stop Conditions
+
+Always use **finite iterations** (e.g., `./ralph.sh 10`). Consider adding additional stop conditions:
+
+| Condition                         | Why                                                    |
+| --------------------------------- | ------------------------------------------------------ |
+| Same test failure repeats N times | Prevent infinite retry loops                           |
+| No files changed in an iteration  | Agent may be stuck or confused                         |
+| Dangerous command detected        | Block destructive operations unless explicitly allowed |
+
+### Completion Detection
+
+The current approach detects `<promise>COMPLETE</promise>` in stdout. For more robust detection:
+
+- Have the agent write a sentinel file (e.g., `.ralph/DONE`)
+- Check for explicit signals in `progress.txt`
+- Avoid relying solely on stdout parsing
+
+### Known Edge Cases
+
+- **Multi-line command handling**: Some AI CLI tools have issues with newline handling in command invocation
+- **Context window limits**: Very long conversations may cause degraded output quality
+- **PRD scope creep**: If agents can modify `prd.json`, they might "complete" by redefining scope
+
+### Ralph vs. PRD Workflow
+
+> [!IMPORTANT] > **Ralph is the loop, not the PRD workflow.** The `plan.md → prd.json → pick feature` pattern in this repo is a scaffold, not intrinsic to Ralph. Geoffrey Huntley's original version is simpler: feed a prompt file to an agent in a loop.
+
+**PRD scope protection:**
+
+- Treat PRD as **product-owner-controlled**
+- Agent can propose edits, but you should gate them
+- Never let the agent unilaterally redefine requirements
+
+---
+
 ## How It Works
 
 ```mermaid
