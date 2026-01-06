@@ -23,26 +23,35 @@ Before running any Ralph loop:
 - ✅ Use a **fresh clone** or isolated branch
 - ✅ Run in a **container** or virtual environment
 - ✅ Use **least-privileged** directories
+- ✅ Consider a **throwaway branch** or **git worktree** for experimentation
 - ❌ Never run on production systems
 - ❌ Never run in directories with sensitive data
 
-### Stop Conditions
+> [!TIP]
+> Create a throwaway branch: `git checkout -b ralph-experiment` — easy to discard if things go wrong.
 
-Always use **finite iterations** (e.g., `./ralph.sh 10`). Consider adding additional stop conditions:
+> [!NOTE] > **For Claude users:** You can follow the [Docker Dev Containers reference implementation](https://github.com/anthropics/claude-code/tree/main/.devcontainer) for a fully isolated environment.
 
-| Condition                         | Why                                                    |
-| --------------------------------- | ------------------------------------------------------ |
-| Same test failure repeats N times | Prevent infinite retry loops                           |
-| No files changed in an iteration  | Agent may be stuck or confused                         |
-| Dangerous command detected        | Block destructive operations unless explicitly allowed |
+### Stop Conditions (Implemented)
 
-### Completion Detection
+The scripts include these automatic stop conditions:
 
-The current approach detects `<promise>COMPLETE</promise>` in stdout. For more robust detection:
+| Signal                        | Detection            | Action                          |
+| ----------------------------- | -------------------- | ------------------------------- |
+| `<promise>COMPLETE</promise>` | stdout parsing       | Exit successfully               |
+| `<promise>FATAL</promise>`    | stdout parsing       | Exit with error                 |
+| No files changed              | `git diff --quiet`   | Warning (agent may be stuck)    |
+| Repeated failure              | Hash of error output | Exit after 3 identical failures |
 
-- Have the agent write a sentinel file (e.g., `.ralph/DONE`)
-- Check for explicit signals in `progress.txt`
-- Avoid relying solely on stdout parsing
+### One Task Per Iteration
+
+The prompt enforces single-task execution:
+
+```
+TASK: [task name]
+```
+
+Agent must declare one task upfront. Multiple tasks = iteration rejected.
 
 ### Known Edge Cases
 

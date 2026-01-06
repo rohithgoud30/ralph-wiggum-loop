@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # ============================================
 # Ralph - Claude Automation Script
@@ -10,23 +10,36 @@ set -e
 #   1. Create plans/plan.md with your project requirements
 #   2. Run this script - it will generate prd.json first
 #   3. Then iterate through features automatically
-#
-# Example plan.md content:
-#   # Project: My API
-#   ## Features
-#   - User authentication with JWT
-#   - Dashboard REST endpoints
-#   - Email notifications
 # ============================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLANS_DIR="$SCRIPT_DIR/.."
+PROJECT_ROOT="$PLANS_DIR/.."
 PLAN_FILE="$PLANS_DIR/plan.md"
 PRD_FILE="$PLANS_DIR/prd.json"
-PROGRESS_FILE="$PLANS_DIR/../progress.txt"
+PROGRESS_FILE="$PROJECT_ROOT/progress.txt"
+RALPH_DIR="$PROJECT_ROOT/.ralph"
+LOGS_DIR="$RALPH_DIR/logs"
+
+# Stop conditions
+MAX_REPEATED_FAILURES=3
+LAST_FAILURE_HASH=""
+FAILURE_COUNT=0
+
+# Cleanup function
+cleanup() {
+  echo ""
+  echo "🛑 Script interrupted. Cleaning up..."
+  exit 1
+}
+
+trap cleanup SIGINT SIGTERM
+
+# Create directories
+mkdir -p "$LOGS_DIR"
 
 # Check for iterations argument
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
   echo "Usage: $0 <iterations>"
   echo ""
   echo "Before running, create plans/plan.md with your project requirements."
@@ -39,13 +52,6 @@ if [ ! -f "$PLAN_FILE" ]; then
   echo "❌ Error: plans/plan.md not found!"
   echo ""
   echo "Please create plans/plan.md with your project requirements first."
-  echo "Example content:"
-  echo "  # Project: My API"
-  echo "  ## Features"
-  echo "  - Feature 1 description"
-  echo "  - Feature 2 description"
-  echo ""
-  echo "See plans/example-prd.json for the expected PRD format."
   exit 1
 fi
 
@@ -85,10 +91,27 @@ echo "🚀 Starting feature iterations..."
 echo ""
 
 for ((i=1; i<=$1; i++)); do
+  ITER_LOG="$LOGS_DIR/iter-$(printf '%02d' $i).txt"
+  
   echo "Iteration $i of $1"
   echo "--------------------------------"
+  echo "📝 Logging to: $ITER_LOG"
+  
+  # Capture git state before iteration
+  GIT_HASH_BEFORE=$(git rev-parse HEAD 2>/dev/null || echo "no-git")
+  
+  # Log iteration start
+  {
+    echo "=== Iteration $i ==="
+    echo "Started: $(date)"
+    echo ""
+  } > "$ITER_LOG"
   
   result=$(claude --permission-mode acceptEdits -p "@plans/prd.json @progress.txt \
+IMPORTANT: You must work on exactly ONE task per iteration. \
+Start your response with 'TASK: [task name]' to declare which single task you will complete. \
+If you try to work on multiple tasks, this iteration will be rejected. \
+
 1. Find the highest-priority feature to work on and work only on that feature. \
 This should be the one YOU decide has the highest priority - not necessarily the first in the list. \
 2. Check that the types check via pnpm typecheck and that the tests pass via pnpm test. \
@@ -96,17 +119,61 @@ This should be the one YOU decide has the highest priority - not necessarily the
 4. Append your progress to the progress.txt file. \
 Use this to leave a note for the next person working in the codebase. \
 5. Make a git commit of that feature. \
-ONLY WORK ON A SINGLE FEATURE. \
-If, while implementing the feature, you notice the PRD is complete, output <promise>COMPLETE</promise>. \
-")
+ONLY WORK ON A SINGLE FEATURE. DO NOT attempt multiple tasks. \
+If PRD is complete, output <promise>COMPLETE</promise>. \
+If you encounter a fatal error you cannot recover from, output <promise>FATAL</promise>. \
+" 2>&1 | tee -a "$ITER_LOG")
 
-  echo "$result"
+  # Log iteration end
+  {
+    echo ""
+    echo "Ended: $(date)"
+    echo "=== End Iteration $i ==="
+  } >> "$ITER_LOG"
 
+  # Check for COMPLETE signal
   if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
     echo ""
     echo "🎉 PRD complete, exiting."
-    tt notify "CVM PRD complete after $i iterations"
     exit 0
+  fi
+  
+  # Check for FATAL signal
+  if [[ "$result" == *"<promise>FATAL</promise>"* ]]; then
+    echo ""
+    echo "💀 Fatal error detected, exiting."
+    exit 1
+  fi
+  
+  # Check if no files changed (agent stuck)
+  GIT_HASH_AFTER=$(git rev-parse HEAD 2>/dev/null || echo "no-git")
+  if [ "$GIT_HASH_BEFORE" = "$GIT_HASH_AFTER" ]; then
+    if git diff --quiet 2>/dev/null; then
+      echo ""
+      echo "⚠️  No changes detected in iteration $i. Agent may be stuck."
+      # Continue but warn - could add counter here to exit after N stuck iterations
+    fi
+  fi
+  
+  # Check for repeated failures (hash test output)
+  if [[ "$result" == *"FAIL"* ]] || [[ "$result" == *"error"* ]]; then
+    CURRENT_FAILURE_HASH=$(echo "$result" | grep -i -E "(FAIL|error)" | head -5 | md5sum | cut -d' ' -f1)
+    if [ "$CURRENT_FAILURE_HASH" = "$LAST_FAILURE_HASH" ]; then
+      FAILURE_COUNT=$((FAILURE_COUNT + 1))
+      echo "⚠️  Same failure repeated ($FAILURE_COUNT/$MAX_REPEATED_FAILURES)"
+      if [ "$FAILURE_COUNT" -ge "$MAX_REPEATED_FAILURES" ]; then
+        echo ""
+        echo "💀 Same failure repeated $MAX_REPEATED_FAILURES times. Exiting."
+        exit 1
+      fi
+    else
+      LAST_FAILURE_HASH="$CURRENT_FAILURE_HASH"
+      FAILURE_COUNT=1
+    fi
+  else
+    # Reset failure tracking on success
+    LAST_FAILURE_HASH=""
+    FAILURE_COUNT=0
   fi
   
   echo ""
