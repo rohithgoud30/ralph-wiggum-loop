@@ -80,26 +80,35 @@ flowchart TD
     end
 
     subgraph Loop["🔄 Iteration Loop"]
-        C{Pick Highest<br/>Priority Feature} --> D[Implement Feature]
-        D --> E[Run Tests & Type Checks]
-        E --> F{Tests Pass?}
-        F -->|No| D
-        F -->|Yes| G[Update PRD & Progress]
-        G --> H[Git Commit]
-        H --> I{PRD Complete?}
-        I -->|No| C
+        C[Declare TASK] --> D{Pick Highest<br/>Priority Feature}
+        D --> E[Implement Feature]
+        E --> F[Run Tests & Type Checks]
+        F --> G{Tests Pass?}
+        G -->|No| H{Same Failure<br/>3x?}
+        H -->|Yes| FATAL
+        H -->|No| E
+        G -->|Yes| I[Update PRD & Progress]
+        I --> J[Git Commit]
+        J --> K{Changes<br/>Made?}
+        K -->|No| STUCK[⚠️ Stuck Warning]
+        STUCK --> L
+        K -->|Yes| L{PRD Complete?}
+        L -->|No| C
     end
 
-    subgraph Done["🎉 Complete"]
-        J["Output: &lt;promise&gt;COMPLETE&lt;/promise&gt;"]
+    subgraph Exit["Exit Conditions"]
+        COMPLETE["🎉 COMPLETE"]
+        FATAL["💀 FATAL"]
     end
 
     B --> C
-    I -->|Yes| J
+    L -->|Yes| COMPLETE
 
     style A fill:#4CAF50,color:#fff
     style B fill:#2196F3,color:#fff
-    style J fill:#9C27B0,color:#fff
+    style COMPLETE fill:#9C27B0,color:#fff
+    style FATAL fill:#dc2626,color:#fff
+    style STUCK fill:#f59e0b,color:#fff
 ```
 
 ## Quick Start
